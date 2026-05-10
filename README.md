@@ -4,11 +4,6 @@
 
 
 
-## 提交信息
-
-- Github repo: `https://github.com/Ciao-Financialworld/HW2_Flower-Recognition-Finetune-CNN.git`
-- 实验报告提交形式：PDF
-- 本仓库用途：提供代码、环境配置、训练方法、测试方法和模型权重说明
 
 ## 项目内容
 
