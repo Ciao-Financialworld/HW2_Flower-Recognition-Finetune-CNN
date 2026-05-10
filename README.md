@@ -1,212 +1,234 @@
-# Task 1：微调预训练 CNN 实现花卉识别
+# Task 1：Flowers-102 图像分类课程作业
 
-基于 **102 Category Flower Dataset** 完成以下四个子任务：
-1. ResNet-18 基准模型（ImageNet 预训练微调）
-2. 超参数分析（学习率 / batch size / epoch / 调度策略）
-3. 预训练消融实验（pretrained vs scratch）
-4. 注意力机制对比（SE-block / CBAM / ViT-Tiny / Swin-T）
+本项目是《深度学习与空间智能》期中作业 `task1` 的代码提交版本。实验基于 `torchvision` 提供的 `Flowers102` 数据集，主要完成预训练模型微调、注意力模块对比、超参数分析和预训练消融实验。
 
----
 
-## 环境配置
 
-**Python ≥ 3.10，CUDA ≥ 11.8（推荐）**
+## 提交信息
 
-```bash
-# 1. 创建虚拟环境（推荐）
-conda create -n flower102 python=3.10 -y
-conda activate flower102
+- Github repo: `https://github.com/Ciao-Financialworld/HW2_Flower-Recognition-Finetune-CNN.git`
+- 实验报告提交形式：PDF
+- 本仓库用途：提供代码、环境配置、训练方法、测试方法和模型权重说明
 
-# 2. 安装 PyTorch（根据 CUDA 版本选择，见 https://pytorch.org）
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+## 项目内容
 
-# 3. 安装其他依赖
-pip install timm        # ViT-Tiny、Swin-T
-pip install swanlab     # 训练可视化（本地模式，无需账号）
-```
+当前仓库包含以下几类实验：
 
-**验证安装：**
-```bash
-python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-python -c "import timm; print(timm.__version__)"
-python -c "import swanlab; print(swanlab.__version__)"
-```
+1. `ResNet-18` 基线模型  
+   使用 ImageNet 预训练权重进行微调。
 
-如果预训练权重下载较慢，可在当前终端先设置 Hugging Face 镜像：
+2. 注意力模块对比  
+   在 `ResNet-18` 基础上实现了：
+   - `SE-block`
+   - `CBAM`
 
-```bash
-export HF_ENDPOINT=https://hf-mirror.com
-```
+3. Transformer 模型对比  
+   使用 `ViT-Tiny` 进行分类实验。
 
----
+4. 超参数分析  
+   以预训练 `ResNet-18` 为基础，对以下因素进行对比：
+   - 学习率组合
+   - batch size
+   - 训练 epoch 数
+   - 学习率调度策略
 
-## 文件结构
+5. 预训练消融实验  
+   对比 `pretrained=True` 和 `pretrained=False` 两种初始化方式。
 
-```
+## 目录结构
+
+```text
 task1/
-├── utils.py                        # 数据加载、训练/评估公共函数
-├── train_resnet18_baseline.py      # 子任务①：ResNet-18 基准
-├── train_resnet18_se.py            # 子任务④：ResNet-18 + SE-block
-├── train_resnet18_cbam.py          # 子任务④：ResNet-18 + CBAM
-├── train_vit_tiny.py               # 子任务④：ViT-Tiny
-├── train_swin_t.py                 # 子任务④：Swin-Tiny
-├── train_hyperparam_analysis.py    # 子任务②：超参数系统分析
-├── ablation_pretrain.py            # 子任务③：预训练消融实验
-├── test.py                         # 测试脚本（评估已保存的模型）
+├── utils.py                        # 数据加载、训练与评估公共函数
+├── train_resnet18_baseline.py      # ResNet-18 基线模型
+├── train_resnet18_se.py            # ResNet-18 + SE-block
+├── train_resnet18_cbam.py          # ResNet-18 + CBAM
+├── train_vit_tiny.py               # ViT-Tiny
+├── train_hyperparam_analysis.py    # 超参数分析
+├── ablation_pretrain.py            # 预训练消融实验
+├── test.py                         # 测试脚本
+├── export_notebook_json.py         # notebook 导出辅助脚本
+├── export_notebook_json.ipynb
+├── checkpoints/                    # 保存的模型权重
+├── data/                           # Flowers-102 数据
 └── README.md
 ```
 
----
+## 环境配置
 
-## 数据集
+建议使用 Python 3.10 及以上版本。
 
-102 Category Flower Dataset 首次运行时**自动下载**（通过 torchvision），无需手动准备。
+```bash
+pip install torch torchvision
+pip install swanlab
+pip install timm
+```
 
-| 划分 | 样本数 | 类别数 |
-|------|--------|--------|
-| train | 1,020 | 102 |
-| val   | 1,020 | 102 |
-| test  | 6,149 | 102 |
+说明：
 
----
+- `torch`、`torchvision` 是训练和数据集加载所必需的。
+- `swanlab` 用于保存本地训练日志。
+- `timm` 仅在 `ViT-Tiny` 和 `Swin-Tiny` 相关模型测试时需要。
 
-## 训练
+## 数据集说明
 
-### 子任务① 基准模型
+项目使用 `Flowers102` 数据集，默认通过 `torchvision.datasets.Flowers102` 下载或读取，数据目录为 `./data`。
+
+官方划分如下：
+
+- train: 1020
+- val: 1020
+- test: 6149
+- classes: 102
+
+如果本地已经存在数据，脚本会直接复用，不需要重复准备。
+
+## 详细实验设置
+
+以下配置对应当前仓库中的主实验脚本 `train_resnet18_baseline.py`、`train_resnet18_se.py`、`train_resnet18_cbam.py` 和 `train_vit_tiny.py`。
+
+| 项目 | 设置 |
+| --- | --- |
+| 数据集 | Flowers102 |
+| 数据划分 | train=1020, val=1020, test=6149 |
+| 输入尺寸 | 224 x 224 |
+| 主干模型 | ResNet-18 / ResNet-18+SE / ResNet-18+CBAM / ViT-Tiny |
+| 预训练 | 默认使用 ImageNet 预训练权重 |
+| batch size | 32 |
+| epoch | 40 |
+| optimizer | AdamW |
+| learning rate | `lr_head=1e-3`, `lr_backbone=1e-4` |
+| weight decay | `1e-2` |
+| scheduler | warmup + cosine decay |
+| warmup epochs | 5 |
+| loss function | CrossEntropyLoss with `label_smoothing=0.1` |
+| 评价指标 | Top-1 Accuracy, Top-5 Accuracy |
+| 训练设备 | 自动检测 `cuda`，否则使用 `cpu` |
+
+补充说明：
+
+- 对于基线和注意力模型，分类头使用较大学习率，backbone 使用较小学习率进行微调。
+- 训练集每个 epoch 的 iteration 数与 batch size 有关。以 `batch_size=32` 为例，train 集 1020 张图像约为 32 个 iteration/epoch。
+- 超参数分析脚本会额外测试不同的学习率组合、batch size、epoch 数和调度策略。
+
+## 训练方法
+
+### 1. 基线模型
 
 ```bash
 python train_resnet18_baseline.py
 ```
 
-### 子任务④ 注意力机制变体
+### 2. 注意力模型
 
 ```bash
-python train_resnet18_se.py      # SE-block
-python train_resnet18_cbam.py    # CBAM
-python train_vit_tiny.py         # ViT-Tiny
-python train_swin_t.py           # Swin-Tiny
+python train_resnet18_se.py
+python train_resnet18_cbam.py
 ```
 
-### 子任务② 超参数分析
+### 3. ViT-Tiny
 
 ```bash
-# 分析所有维度（耗时较长）
+python train_vit_tiny.py
+```
+
+### 4. 超参数分析
+
+```bash
+python train_hyperparam_analysis.py --analysis lr
+python train_hyperparam_analysis.py --analysis batch
+python train_hyperparam_analysis.py --analysis epoch
+python train_hyperparam_analysis.py --analysis scheduler
 python train_hyperparam_analysis.py --analysis all
-
-# 只分析某一维度
-python train_hyperparam_analysis.py --analysis lr         # 学习率组合
-python train_hyperparam_analysis.py --analysis batch      # Batch Size
-python train_hyperparam_analysis.py --analysis epoch      # 训练 Epoch 数
-python train_hyperparam_analysis.py --analysis scheduler  # 调度策略
 ```
 
-### 子任务③ 预训练消融实验
+超参数分析范围如下：
+
+- 学习率组合：`lr_head` 和 `lr_backbone`
+- batch size：16 / 32 / 64 / 128
+- epoch：20 / 40 / 60 / 80
+- scheduler：`cosine` / `step` / `multistep` / `constant`
+
+### 5. 预训练消融
 
 ```bash
 python ablation_pretrain.py
-# 自动依次运行：ImageNet预训练微调 vs 随机初始化从零训练
-# 训练结束后打印两组 Test Acc 对比及提升幅度
 ```
 
----
+## 测试方法
 
-## 测试 / 评估
-
-训练完成后，checkpoint 自动保存至 `./checkpoints/<model_name>_best.pth`。
+测试单个模型：
 
 ```bash
-# 评估单个模型（Top-1 + Top-5 准确率）
-python test.py --model resnet18_baseline \
-               --ckpt ./checkpoints/resnet18_baseline_best.pth
+python test.py --model resnet18_baseline --ckpt ./checkpoints/resnet18_baseline_best.pth
+python test.py --model resnet18_se --ckpt ./checkpoints/resnet18_se_best.pth
+python test.py --model resnet18_cbam --ckpt ./checkpoints/resnet18_cbam_best.pth
+python test.py --model vit_tiny --ckpt ./checkpoints/vit_tiny_best.pth
+```
 
-python test.py --model resnet18_se \
-               --ckpt ./checkpoints/resnet18_se_best.pth
+测试 `checkpoints/` 下所有已保存模型：
 
-python test.py --model resnet18_cbam \
-               --ckpt ./checkpoints/resnet18_cbam_best.pth
-
-python test.py --model vit_tiny \
-               --ckpt ./checkpoints/vit_tiny_best.pth
-
-python test.py --model swin_tiny \
-               --ckpt ./checkpoints/swin_tiny_best.pth
-
-# 一次性评估 ./checkpoints/ 下所有已保存模型
+```bash
 python test.py --all
 ```
 
-输出示例：
-```
-  Model   : resnet18_baseline
-  Test Loss     : 0.8234
-  Test Acc (Top-1): 87.45%
-  Test Acc (Top-5): 97.82%
-```
+测试脚本会输出：
 
----
+- Test Loss
+- Top-1 Accuracy
+- Top-5 Accuracy
 
-## 实验设置汇总
+## 输出文件
 
-| 项目 | 配置 |
-|------|------|
-| 数据集 | 102 Category Flower Dataset |
-| 训练集/验证集/测试集 | 1020 / 1020 / 6149（官方划分） |
-| 输入尺寸 | 224×224 |
-| Batch Size | 32 |
-| Epochs | 60 |
-| 优化器 | AdamW（所有模型统一） |
-| LR (head) | 1e-3 |
-| LR (backbone) | 1e-4（CNN）/ 1e-4（ViT）/ 5e-5（Swin） |
-| Weight Decay | 1e-2 |
-| 调度策略 | Warmup(5 epoch) + Cosine Annealing |
-| Loss | CrossEntropyLoss（label_smoothing=0.1） |
-| 评价指标 | Top-1 Accuracy、Top-5 Accuracy |
-| 数据增强 | RandomResizedCrop、RandomFlip、ColorJitter、RandomRotation |
+训练完成后，主要输出包括：
 
----
+- `./checkpoints/`：各模型最佳权重
+- `./checkpoints/hpsearch/`：超参数分析过程中保存的权重
+- `./swanlab_logs/`：本地训练日志
 
-## 可视化（SwanLab 本地模式）
+## 可视化记录
 
-所有训练脚本均以**本地模式**保存日志，无需登录账号：
+课程要求中提到需要给出训练过程可视化截图。本项目使用 `swanlab` 本地模式记录训练日志。
+
+启动方式：
 
 ```bash
-# 启动本地可视化面板（训练中或训练后均可）
 swanlab watch ./swanlab_logs
-# 然后在浏览器打开 http://127.0.0.1:43143
 ```
 
-每个实验记录以下指标：
-- `train/loss`、`train/accuracy`
-- `val/loss`、`val/accuracy`
-- `test/accuracy`（训练结束后最优 checkpoint 的测试集结果）
-- `lr`（当前学习率）
+建议在实验报告中截图以下内容：
 
-超参数分析的各组实验在同一 project 下，可直接多曲线对比。
+- 训练集和验证集的 `loss` 曲线
+- 验证集 `accuracy` 曲线
+- 不同模型或不同超参数设置的对比曲线
 
----
+说明：
+
+- 本任务是图像分类任务，因此主要使用 `Accuracy`，而不是目标检测中的 `mAP`。
+- 当前训练脚本会记录 `train/loss`、`train/accuracy`、`val/loss`、`val/accuracy`、`test/accuracy` 和学习率变化。
 
 ## 模型权重下载
 
-> 训练完成后将 `./checkpoints/` 上传至网盘，在此填写下载链接。
+课程要求中需要提供模型权重的网盘下载地址。本项目训练得到的模型权重统一托管在 Google Drive：
 
-| 模型 | 下载链接 |
-|------|----------|
-| ResNet-18 Baseline | _待上传_ |
-| ResNet-18 + SE-block | _待上传_ |
-| ResNet-18 + CBAM | _待上传_ |
-| ViT-Tiny | _待上传_ |
-| Swin-Tiny | _待上传_ |
+`https://drive.google.com/drive/folders/1wfNy5JJI22H8WwRlFdjM4Pbi3XZsOY6?usp=drive_link`
 
----
+| 模型 | 权重文件 | 下载地址 |
+| --- | --- | --- |
+| ResNet-18 Baseline | `checkpoints/resnet18_baseline_best.pth` | Google Drive 文件夹链接 |
+| ResNet-18 + SE | `checkpoints/resnet18_se_best.pth` | Google Drive 文件夹链接 |
+| ResNet-18 + CBAM | `checkpoints/resnet18_cbam_best.pth` | Google Drive 文件夹链接 |
+| ViT-Tiny | `checkpoints/vit_tiny_best.pth` | Google Drive 文件夹链接 |
+| 预训练消融（Scratch） | `checkpoints/resnet18_scratch_best.pth` | Google Drive 文件夹链接 |
 
-## 常见问题
 
-**Q: 下载数据集很慢？**  
-可手动下载后放入 `./data/` 目录，torchvision 会自动识别已有文件。
 
-**Q: Swin-T 显存不足？**  
-将 `train_swin_t.py` 中 `batch_size` 改为 16，或开启混合精度：
-在训练循环中加 `torch.cuda.amp.autocast()`。
+## 备注
 
-**Q: ViT-Tiny 精度低于 ResNet-18？**  
-ViT 在小数据集上通常需要更多数据增强或更长训练。可在 `utils.py` 中增强数据增强强度，或将 `num_epochs` 调大至 100。
+如果需要查看本地日志，可以使用：
+
+```bash
+swanlab watch ./swanlab_logs
+```
+
+
